@@ -304,8 +304,19 @@
       return `${syncBadge(row.syncStatus)}${row.syncError ? `<div class="muted">${escapeHtml(row.syncError)}</div>` : ""}`;
     }
 
-    function setMessage(id, message, isError = false) {
-      document.getElementById(id).innerHTML = message ? `<div class="message ${isError ? "error" : ""}">${escapeHtml(message)}</div>` : "";
+    function setMessage(id, message, isError = false, hasRetry = false) {
+      let html = "";
+      if (message) {
+        html = `<div class="message ${isError ? "error" : ""}">`;
+        html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">`;
+        html += `<span>${escapeHtml(message)}</span>`;
+        if (hasRetry && isError) {
+          html += `<button class="btn secondary" style="flex-shrink: 0; padding: 6px 10px; font-size: 12px;" onclick="location.reload()"><i class="fas fa-redo"></i>ลองใหม่</button>`;
+        }
+        html += `</div>`;
+        html += `</div>`;
+      }
+      document.getElementById(id).innerHTML = html;
     }
 
     function recordCard(row, includeAction) {
@@ -373,22 +384,57 @@
       }
     }
 
-    async function callGas(action, payload = {}) {
+    async function callGas(action, payload = {}, retryCount = 0) {
       if (!lineProfile.userId) throw new Error("ไม่พบ LINE User ID");
-      const response = await fetch(GAS_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action,
-          page: "manage.html",
-          accessToken: lineAccessToken,
-          displayName: lineProfile.displayName,
-          payload
-        })
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || "เกิดข้อผิดพลาด");
-      return result;
+      
+      // Check network connectivity
+      if (!navigator.onLine) {
+        throw new Error("ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาตรวจสอบ Wi-Fi หรือ 4G ของคุณ");
+      }
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
+        const response = await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action,
+            page: "manage.html",
+            accessToken: lineAccessToken,
+            displayName: lineProfile.displayName,
+            payload
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`เซิร์ฟเวอร์ตอบกลับข้อผิดพลาด (${response.status}). กรุณาลองใหม่ในอีกสักครู่`);
+        }
+        
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || "เกิดข้อผิดพลาด");
+        return result;
+      } catch (err) {
+        // Retry logic: max 2 retries for network errors
+        if (retryCount < 2 && (err.name === 'AbortError' || err.message.includes('Failed to fetch') || err.message.includes('Network'))) {
+          console.warn(`Retry ${retryCount + 1}/2 for action: ${action}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+          return callGas(action, payload, retryCount + 1);
+        }
+        
+        // Enhance error message
+        if (err.name === 'AbortError') {
+          throw new Error("ขอบเขต: เซิร์ฟเวอร์ใช้เวลาตอบสนองนานเกินไป กรุณาลองใหม่ในอีกสักครู่");
+        }
+        if (err.message.includes('Failed to fetch')) {
+          throw new Error("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบ: 1) การเชื่อมต่ออินเทอร์เน็ต 2) เซิร์ฟเวอร์ Active หรือไม่");
+        }
+        throw err;
+      }
     }
 
 
@@ -426,7 +472,7 @@
         renderSearchResults();
         setMessage("searchMessage", searchResults.length ? `พบหมายจับ ${searchResults.length} รายการ` : "ไม่พบหมายจับในระบบ");
       } catch (err) {
-        setMessage("searchMessage", err.message, true);
+        setMessage("searchMessage", err.message, true, true);
       } finally {
         searchBtn.disabled = false;
         searchBtn.innerHTML = `<i class="fas fa-search"></i>ค้นหาหมายจับ`;
@@ -522,7 +568,7 @@
         await loadPending();
         closeAddPanel();
       } catch (err) {
-        setMessage("searchMessage", err.message, true);
+        setMessage("searchMessage", err.message, true, true);
       } finally {
         document.getElementById("confirmSaveBtn").disabled = false;
         document.getElementById("confirmSaveBtn").innerHTML = `<i class="fas fa-floppy-disk"></i>ยืนยันบันทึก`;
@@ -602,7 +648,13 @@
       } catch (err) {
         document.getElementById("syncBtn").classList.remove("hidden");
         box.className = "message error";
-        box.innerText = err.message;
+        const isNetworkError = err.message.includes("Failed to fetch") || err.message.includes("ไม่มีการเชื่อมต่อ");
+        box.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">`;
+        box.innerHTML += `<span>${escapeHtml(err.message)}</span>`;
+        if (isNetworkError) {
+          box.innerHTML += `<button class="btn secondary" style="flex-shrink: 0; padding: 6px 10px; font-size: 12px;" onclick="location.reload()"><i class="fas fa-redo"></i>ลองใหม่</button>`;
+        }
+        box.innerHTML += `</div>`;
       }
     }
 

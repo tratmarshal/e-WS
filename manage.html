@@ -14,7 +14,7 @@
       --panel: #111827;
       --line: #243244;
       --text: #f8fafc;
-      --muted: #b9c7da;
+      --muted: #94a3b8;
       --blue: #2563eb;
       --green: #16a34a;
       --yellow: #eab308;
@@ -75,7 +75,7 @@
       width: 80px;
       height: 80px;
       margin: 16px auto 0 auto;
-      border: none;
+      border: 1px dashed rgba(148,163,184,.45);
       border-radius: 14px;
       background: rgba(37,99,235,.1);
       color: #bfdbfe;
@@ -128,10 +128,14 @@
     .section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
     .section-head h3 { margin: 0; }
     .count-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; color: #bfdbfe; background: rgba(37,99,235,.14); border: 1px solid rgba(37,99,235,.28); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .workflow { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; }
+    @media (min-width: 760px) { .workflow { grid-template-columns: repeat(3, 1fr); } }
+    .step { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #08111f; color: var(--muted); }
+    .step strong { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
     .history-toggle { width: 100%; justify-content: space-between; background: #1f2937; }
     .history-body.hidden { display: none !important; }
     @media (min-width: 761px) { .sticky-actions { display: none !important; } }
-    @media (max-width: 760px) { body { padding-bottom: 86px; } th.optional, td.optional { display: none; } .btn:not(.icon-btn) { width: 100%; } .actions { width: 100%; } .summary-row { grid-template-columns: 1fr; } .table-wrap.responsive-table { display: none; } .mobile-list { display: grid; } .record-card .btn { width: 100%; } }
+    @media (max-width: 760px) { body { padding-bottom: 86px; } th.optional, td.optional { display: none; } .btn { width: 100%; } .actions { width: 100%; } .summary-row { grid-template-columns: 1fr; } .table-wrap.responsive-table { display: none; } .mobile-list { display: grid; } .record-card .btn { width: 100%; } }
   </style>
 </head>
 <body>
@@ -151,7 +155,7 @@
       <div class="topbar" style="padding:0; background:transparent; border:0">
         <h2>รายการดำเนินการ</h2>
         <div class="actions">
-          <button class="btn secondary hidden" id="syncBtn"><i class="fas fa-arrows-rotate"></i>ลองอัปเดตอีกครั้ง</button>
+          <button class="btn secondary hidden" id="syncBtn"><i class="fas fa-rotate-right"></i>รีเฟรชรายการ</button>
         </div>
       </div>
       <div id="pendingList" class="message" style="max-height:55vh;overflow-y:auto;">กำลังโหลด...</div>
@@ -166,14 +170,19 @@
         <h2>เพิ่มรายการดำเนินการ</h2>
         <button class="btn secondary icon-btn" id="closeAddBtn" type="button" aria-label="ปิดฟอร์มเพิ่มรายการ"><i class="fas fa-xmark"></i></button>
       </div>
+      <div class="workflow">
+        <div class="step"><strong>1. ค้นหาจำเลย</strong><span>กรอกเลขบัตรประชาชน 13 หลัก</span></div>
+        <div class="step"><strong>2. เลือกหมายจับ</strong><span>เลือกเฉพาะหมายจับที่เหตุเดียวกันทำให้สิ้นผล</span></div>
+        <div class="step"><strong>3. บันทึกเหตุ</strong><span>ตรวจสอบก่อนเปลี่ยนสถานะหมายจับ</span></div>
+      </div>
       <div class="grid two">
         <div>
           <label for="id13Input">เลขบัตรประชาชน 13 หลัก</label>
           <input id="id13Input" inputmode="numeric" maxlength="13" placeholder="กรอกเลข 13 หลัก">
         </div>
         <div style="align-self:end" class="actions">
-          <button class="btn" id="searchBtn"><i class="fas fa-search"></i></button>
-          <button class="btn secondary" id="clearBtn"><i class="fas fa-rotate-left"></i>ล้าง</button>
+          <button class="btn" id="searchBtn"><i class="fas fa-search"></i>ค้นหาหมายจับ</button>
+          <button class="btn secondary" id="clearBtn"><i class="fas fa-rotate-left"></i>ล้างข้อมูล</button>
         </div>
       </div>
       <div id="searchMessage" style="margin-top:12px"></div>
@@ -536,17 +545,13 @@
         
         if (!activeRows.length) {
           box.className = "message";
-          box.innerText = "ไม่มีรายการดำเนินการ";
+          box.innerHTML = "<p style='margin:0'>ไม่มีรายการดำเนินการ</p><p style='margin:4px 0 0 0; font-size:12px; color:var(--muted)'>✓ ระบบอัปเดตอัตโนมัติทุก 5 นาที</p>";
           document.getElementById("syncBtn").classList.add("hidden");
           return;
         }
 
         const needsStatusUpdate = activeRows.some(row => row.syncStatus !== "synced");
-        if (needsStatusUpdate) {
-          document.getElementById("syncBtn").classList.remove("hidden");
-        } else {
-          document.getElementById("syncBtn").classList.add("hidden");
-        }
+        document.getElementById("syncBtn").classList.toggle("hidden", !needsStatusUpdate);
 
         let html = `<div class="table-wrap responsive-table">
           <table>
@@ -601,9 +606,9 @@
       }
     }
 
-    async function syncNow() {
+    async function refreshList() {
       try {
-        await callGas("syncProcessing");
+        // Just reload the pending list - sync happens automatically in backend via Time Trigger
         await loadPending();
       } catch (err) {
         document.getElementById("pendingList").className = "message error";
@@ -679,7 +684,7 @@
     document.getElementById("cancelConfirmBtn").addEventListener("click", closeConfirm);
     document.getElementById("confirmRevokeBtn").addEventListener("click", markRevoked);
     document.getElementById("cancelRevokeBtn").addEventListener("click", closeRevokeConfirm);
-    document.getElementById("syncBtn").addEventListener("click", syncNow);
+    document.getElementById("syncBtn").addEventListener("click", refreshList);
     document.getElementById("id13Input").addEventListener("keydown", e => { if (e.key === "Enter") searchWarrants(); });
     document.getElementById("id13Input").addEventListener("input", e => {
       e.target.value = e.target.value.replace(/\D/g, "").slice(0, 13);

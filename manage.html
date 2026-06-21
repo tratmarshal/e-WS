@@ -14,7 +14,7 @@
         body {
             font-family: 'Sarabun', 'Inter', sans-serif;
         }
-        /* Spinner CSS */
+        /* Spinner CSS สำหรับหน้าล็อกอิน */
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #10b981;
@@ -26,6 +26,24 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        /* Skeleton Loader Animation */
+        @keyframes skeleton-pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+            border-radius: 6px;
+        }
+        .skeleton-row {
+            display: flex;
+            align-items: center;
+            padding: 16px 24px;
+            gap: 16px;
+            border-bottom: 1px solid #f1f5f9;
         }
     </style>
 </head>
@@ -124,21 +142,7 @@
             </div>
         </div>
 
-        <!-- กล่องข้อมูลสถิติเบื้องต้น (Dashboard Summary) มนโค้งมนและมีมิติ -->
-        <div class="grid grid-cols-3 gap-3 sm:gap-4">
-            <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                <p class="text-[10px] sm:text-[11px] text-slate-400 font-bold uppercase tracking-wider">เสนอศาลแล้ว (รอคำสั่ง)</p>
-                <p class="text-xl sm:text-3xl font-extrabold text-amber-600 mt-1" id="countProposed">0</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                <p class="text-[10px] sm:text-[11px] text-slate-400 font-bold uppercase tracking-wider">รอส่งต่อสำนวน</p>
-                <p class="text-xl sm:text-3xl font-extrabold text-indigo-600 mt-1" id="countWaiting">0</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                <p class="text-[10px] sm:text-[11px] text-slate-400 font-bold uppercase tracking-wider">ส่งต่อแล้ว (รอบวันนี้)</p>
-                <p class="text-xl sm:text-3xl font-extrabold text-emerald-600 mt-1" id="countCompleted">0</p>
-            </div>
-        </div>
+
 
         <!-- แถบสลับแท็บ (Tabs Navigation) ชัดเจนและเข้าใจง่าย -->
         <div class="flex border-b border-slate-200 gap-6">
@@ -547,6 +551,22 @@
         // -------------------------------------------------------------
         async function fetchDataFromGAS() {
             try {
+                // แสดง Skeleton Loader ในตารางข้อมูล
+                const listContainer = document.getElementById('itemsList');
+                const emptyState = document.getElementById('emptyState');
+                const itemsTable = document.getElementById('itemsTable');
+                
+                emptyState.classList.add('hidden');
+                itemsTable.classList.remove('hidden');
+                listContainer.innerHTML = Array(3).fill(0).map(() => `
+                    <tr class="skeleton-row skeleton">
+                        <td class="px-6 py-4" colspan="6">
+                            <div class="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                            <div class="h-3 bg-slate-200 rounded w-1/2"></div>
+                        </td>
+                    </tr>
+                `).join('');
+
                 // เก็บกล่องฟังก์ชันเผื่อกดขอส่งคำสั่งทำใหม่อีกครั้ง (Retry Logic)
                 lastFailedRequest = { fn: fetchDataFromGAS, args: [] };
                 
@@ -600,13 +620,6 @@
                 displayedItems = masterItems.filter(item => item.caseStatus === 'ส่งต่อแล้ว');
             }
 
-            const prCount = masterItems.filter(item => item.caseStatus === 'เสนอศาล').length;
-            const wCount = masterItems.filter(item => item.caseStatus === 'รอส่งต่อ').length;
-            const completedCount = masterItems.filter(item => item.caseStatus === 'ส่งต่อแล้ว').length;
-
-            document.getElementById('countProposed').innerText = prCount;
-            document.getElementById('countWaiting').innerText = wCount;
-            document.getElementById('countCompleted').innerText = completedCount;
             document.getElementById('tableCount').innerText = "ทั้งหมด " + displayedItems.length + " รายการ";
 
             if (displayedItems.length === 0) {
@@ -709,10 +722,22 @@
             try {
                 lastFailedRequest = { fn: searchWarrants, args: [] };
                 
-                // ตรวจสอบชนิดการสืบค้นให้ตรงกับข้อกำหนดใน search.gs ของหลังบ้าน (id13 หรือ name)
                 const searchType = /^\d+$/.test(query) && query.length === 13 ? "id13" : "name";
                 
-                // ยิงคำขอค้นหาข้ามระบบด้วยฟอร์แมตพารามิเตอร์ของหลังบ้านจริง
+                // แสดง Skeleton Loader ในผลลัพธ์การค้นหา
+                document.getElementById('searchResultsSection').classList.remove('hidden');
+                document.getElementById('warrantForm').classList.remove('hidden');
+                const listCheckboxDiv = document.getElementById('warrantsCheckboxList');
+                listCheckboxDiv.innerHTML = Array(2).fill(0).map(() => `
+                    <div class="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100 skeleton">
+                        <div class="mt-1 h-4 w-4 rounded bg-slate-200"></div>
+                        <div class="flex-1">
+                            <div class="h-3 bg-slate-200 rounded w-1/3 mb-2"></div>
+                            <div class="h-2 bg-slate-200 rounded w-full"></div>
+                        </div>
+                    </div>
+                `).join('');
+                
                 const response = await callGas("search", { searchType: searchType, keyword: query });
                 const warrants = response.data || [];
                 
@@ -737,14 +762,18 @@
                     const wDet = warrant.charge || warrant.detail || `ไม่มีรายละเอียดข้อหา`;
                     const wStatus = warrant.status || '';
 
-                    if(wStatus === 'เพิกถอน') return;
+                    // กันพลาดตอนเลือกหมายจับ: แสดงประวัติทั้งหมดแต่ล็อกหมายจับที่สิ้นผลแล้วให้เป็นสีเทา
+                    const isRevoked = wStatus === 'เพิกถอน' || wStatus === 'สิ้นผลรอเพิกถอน';
+                    const disabledAttr = isRevoked ? 'disabled' : '';
+                    const opacityClass = isRevoked ? 'opacity-50 grayscale' : '';
+                    const checkedAttr = isRevoked ? '' : 'checked';
 
                     const div = document.createElement('div');
-                    div.className = "flex items-start space-x-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border border-slate-100";
+                    div.className = `flex items-start space-x-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100 ${opacityClass}`;
                     div.innerHTML = `
-                        <input type="checkbox" id="chk-${index}" value="${wNo}" data-detail="${wDet}" checked
+                        <input type="checkbox" id="chk-${index}" value="${wNo}" data-detail="${wDet}" ${checkedAttr} ${disabledAttr}
                                class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
-                        <label for="chk-${index}" class="text-xs cursor-pointer block select-none flex-1">
+                        <label for="chk-${index}" class="text-xs ${isRevoked ? 'cursor-not-allowed' : 'cursor-pointer'} block select-none flex-1">
                             <span class="font-bold text-slate-900 block flex justify-between">
                                 <span>${wNo}</span>
                                 ${wStatus ? `<span class="text-[10px] text-amber-600 font-normal bg-amber-50 px-1.5 rounded">${wStatus}</span>` : ''}
@@ -904,10 +933,9 @@
             const buttons = document.querySelectorAll('button');
             
             if (show) {
-                overlay.classList.remove('hidden');
+                // Skeleton Loader takes over UI, so we don't show the full blocking overlay anymore
                 buttons.forEach(b => b.disabled = true);
             } else {
-                overlay.classList.add('hidden');
                 buttons.forEach(b => b.disabled = false);
             }
         }

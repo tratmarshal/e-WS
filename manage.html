@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07111f">
   <title>จัดการหมายจับ | Warrant Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -32,8 +32,8 @@
     h3 { font-size: 16px; margin-bottom: 10px; }
     .muted { color: var(--muted); font-size: 13px; }
     .user { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
-    .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--panel); overflow: hidden; display: grid; place-items: center; }
-    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--panel); overflow: hidden; display: grid; place-items: center; flex-shrink: 0; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
     .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
     @media (min-width: 760px) { .grid.two { grid-template-columns: 1fr 1fr; } }
     input, select, textarea { width: 100%; border: 1px solid var(--line); background: #08111f; color: var(--text); border-radius: 10px; padding: 12px; font: inherit; }
@@ -52,7 +52,7 @@
     .record-card { border: 1px solid var(--line); border-radius: 10px; background: #08111f; padding: 12px; display: grid; gap: 10px; }
     .record-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
     .record-no { font-weight: 800; font-family: monospace; color: var(--text); }
-    .record-name { font-weight: 700; }
+    .record-name { font-weight: 700; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
     .record-meta { display: grid; gap: 6px; }
     .record-row { display: grid; grid-template-columns: 88px 1fr; gap: 8px; font-size: 13px; line-height: 1.45; }
     .record-row span:first-child { color: var(--muted); }
@@ -133,7 +133,7 @@
           <button class="btn secondary hidden" id="syncBtn"><i class="fas fa-arrows-rotate"></i>ลองอัปเดตอีกครั้ง</button>
         </div>
       </div>
-      <div id="pendingList" class="message">กำลังโหลด...</div>
+      <div id="pendingList" class="message" style="max-height:55vh;overflow-y:auto;">กำลังโหลด...</div>
       <button class="add-entry-btn" id="openAddBtn" type="button">
         <span><i class="fas fa-plus"></i></span>
         เพิ่มรายการดำเนินการ
@@ -145,14 +145,19 @@
         <h2>เพิ่มรายการดำเนินการ</h2>
         <button class="btn secondary icon-btn" id="closeAddBtn" type="button" aria-label="ปิดฟอร์มเพิ่มรายการ"><i class="fas fa-xmark"></i></button>
       </div>
+      <div class="workflow">
+        <div class="step"><strong>1. ค้นหาจำเลย</strong><span>กรอกเลขบัตรประชาชน 13 หลัก</span></div>
+        <div class="step"><strong>2. เลือกหมายจับ</strong><span>เลือกเฉพาะหมายจับที่เหตุเดียวกันทำให้สิ้นผล</span></div>
+        <div class="step"><strong>3. บันทึกเหตุ</strong><span>ตรวจสอบก่อนเปลี่ยนสถานะหมายจับ</span></div>
+      </div>
       <div class="grid two">
         <div>
           <label for="id13Input">เลขบัตรประชาชน 13 หลัก</label>
           <input id="id13Input" inputmode="numeric" maxlength="13" placeholder="กรอกเลข 13 หลัก">
         </div>
         <div style="align-self:end" class="actions">
-          <button class="btn" id="searchBtn"><i class="fas fa-search"></i></button>
-          <button class="btn secondary" id="clearBtn"><i class="fas fa-rotate-left"></i></button>
+          <button class="btn" id="searchBtn"><i class="fas fa-search"></i>ค้นหาหมายจับ</button>
+          <button class="btn secondary" id="clearBtn"><i class="fas fa-rotate-left"></i>ล้างข้อมูล</button>
         </div>
       </div>
       <div id="searchMessage" style="margin-top:12px"></div>
@@ -181,6 +186,7 @@
         <div class="actions" style="margin-top:12px">
           <span class="selected-count-chip" id="selectedCountChip"><i class="fas fa-list-check"></i>เลือก 0 หมายจับ</span>
           <button class="btn" id="saveBtn" disabled><i class="fas fa-clipboard-check"></i>ตรวจสอบก่อนบันทึก</button>
+          <button class="btn secondary" id="cancelFormBtn" type="button"><i class="fas fa-arrow-left"></i>ย้อนกลับ / ยกเลิก</button>
         </div>
       </div>
     </section>
@@ -219,13 +225,16 @@
   </div>
   <script src="https://static.line-scdn.net/liff/edge/versions/2.23.0/sdk.js"></script>
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyss_zHh0OcITnBgf86OQCL_TMBbWLuyYkQpI2gyQIzXPYOlW0VLOo5O1i2gs2RC13a/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxIeWnUnaO1tzNilGlv2pG3_xW7hFiTITDM5pMwuKy01zRQbUxU55X5rtaIQlN1iQ4l/exec";
     const LIFF_ID = "2010272973-6qo1suX2";
     const STATUS_WANTED = "ต้องการตัว";
     const STATUS_PENDING = "สิ้นผลรอเพิกถอน";
     const STATUS_REVOKED = "เพิกถอน";
+    const CASE_STATUS_WAITING_FORWARD = "รอส่งต่อ";
+    const CASE_STATUS_FORWARDED = "ส่งต่อแล้ว";
 
     let lineProfile = { userId: "", displayName: "", pictureUrl: "" };
+    let lineAccessToken = "";
     let searchResults = [];
     let pendingRows = [];
     let revokeRowId = null;
@@ -260,21 +269,30 @@
 
     function recordCard(row, includeAction) {
       const canRevoke = row.warrantStatus === STATUS_PENDING && row.syncStatus === "synced";
+      const canForward = row.warrantStatus === STATUS_REVOKED && row.caseStatus === CASE_STATUS_WAITING_FORWARD;
       const updateHtml = syncCell(row);
+      const actionBtnHtml = includeAction
+        ? (canForward
+          ? `<button class="btn secondary" style="width:34px; height:34px; padding:0; border-radius:50%; flex-shrink:0;" onclick="markForwarded(${Number(row.rowId)})" title="ส่งต่อ"><i class="fas fa-share" style="margin:0;"></i></button>`
+          : `<button class="btn danger" style="width:34px; height:34px; padding:0; border-radius:50%; flex-shrink:0;" onclick="openRevokeConfirm(${Number(row.rowId)})" ${canRevoke ? "" : "disabled"} title="เพิกถอน"><i class="fas fa-ban" style="margin:0;"></i></button>`)
+        : "";
       return `<article class="record-card">
         <div class="record-card-head">
-          <div>
+          <div style="flex-grow: 1; min-width: 0;">
             <div class="record-no">${escapeHtml(row.warrantNo || "")}</div>
             <div class="record-name">${escapeHtml(row.fullName || "")}</div>
           </div>
-          ${statusBadge(row.warrantStatus)}
+          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            ${statusBadge(row.warrantStatus)}
+            ${actionBtnHtml}
+          </div>
         </div>
         <div class="record-meta">
           <div class="record-row"><span>เวลา</span><strong>${escapeHtml(row.timestamp || "")}</strong></div>
           <div class="record-row"><span>เหตุ</span><strong>${escapeHtml(row.reason || "")}${row.reasonDetail ? `<div class="muted">${escapeHtml(row.reasonDetail)}</div>` : ""}</strong></div>
+          <div class="record-row"><span>สถานะสำนวน</span><strong>${escapeHtml(row.caseStatus || "")}</strong></div>
           ${updateHtml ? `<div class="record-row"><span>ผลอัปเดต</span><strong>${updateHtml}</strong></div>` : ""}
         </div>
-        ${includeAction ? `<button class="btn danger" onclick="openRevokeConfirm(${Number(row.rowId)})" ${canRevoke ? "" : "disabled"}><i class="fas fa-ban"></i>เพิกถอน</button>` : ""}
       </article>`;
     }
 
@@ -305,12 +323,12 @@
       }
       const profile = await liff.getProfile();
       lineProfile = profile;
+      lineAccessToken = liff.getAccessToken();
       document.getElementById("displayName").innerText = profile.displayName;
       if (profile.pictureUrl) {
         document.getElementById("avatar").innerHTML = `<img src="${profile.pictureUrl}" alt="Profile">`;
       }
     }
-      
 
     async function callGas(action, payload = {}) {
       if (!lineProfile.userId) throw new Error("ไม่พบ LINE User ID");
@@ -320,7 +338,7 @@
         body: JSON.stringify({
           action,
           page: "manage.html",
-          userId: lineProfile.userId,
+          accessToken: lineAccessToken,
           displayName: lineProfile.displayName,
           payload
         })
@@ -481,8 +499,8 @@
           box.innerHTML = "ยังไม่มีรายการดำเนินการ เริ่มจากเพิ่มรายการดำเนินการ";
           return;
         }
-        const activeRows = pendingRows.filter(row => row.warrantStatus !== STATUS_REVOKED);
-        const historyRows = pendingRows.filter(row => row.warrantStatus === STATUS_REVOKED);
+        const activeRows = pendingRows.filter(row => row.caseStatus !== CASE_STATUS_FORWARDED);
+        const historyRows = pendingRows.filter(row => row.caseStatus === CASE_STATUS_FORWARDED && row.warrantStatus === STATUS_REVOKED);
         const needsStatusUpdate = pendingRows.some(row => row.syncStatus !== "synced");
         document.getElementById("syncBtn").classList.toggle("hidden", !needsStatusUpdate);
         const updateHeader = needsStatusUpdate ? `<th>ผลอัปเดต</th>` : "";
@@ -496,17 +514,22 @@
         if (!activeRows.length) {
           html += `<div class="message">ไม่มีรายการที่ดำเนินอยู่</div>`;
         } else {
-          html += `<div class="table-wrap responsive-table"><table><thead><tr><th>เวลา</th><th>หมายจับ</th><th>ชื่อสกุล</th><th>เหตุ</th><th>สถานะหมายจับ</th>${updateHeader}<th>จัดการ</th></tr></thead><tbody>`;
+          html += `<div class="table-wrap responsive-table"><table><thead><tr><th>เวลา</th><th>หมายจับ</th><th>ชื่อสกุล</th><th>เหตุ</th><th>สถานะสำนวน</th><th>สถานะหมายจับ</th>${updateHeader}<th>จัดการ</th></tr></thead><tbody>`;
           activeRows.forEach(row => {
             const canRevoke = row.warrantStatus === STATUS_PENDING && row.syncStatus === "synced";
+            const canForward = row.warrantStatus === STATUS_REVOKED && row.caseStatus === CASE_STATUS_WAITING_FORWARD;
+            const actionButtons = canForward
+              ? `<button class="btn secondary" style="width:34px; height:34px; padding:0; border-radius:50%;" onclick="markForwarded(${Number(row.rowId)})" title="ส่งต่อ"><i class="fas fa-share"></i></button>`
+              : `<button class="btn danger" style="width:34px; height:34px; padding:0; border-radius:50%;" onclick="openRevokeConfirm(${Number(row.rowId)})" ${canRevoke ? "" : "disabled"} title="เพิกถอน"><i class="fas fa-ban"></i></button>`;
             html += `<tr>
               <td>${escapeHtml(row.timestamp || "")}</td>
               <td>${escapeHtml(row.warrantNo || "")}</td>
               <td>${escapeHtml(row.fullName || "")}</td>
               <td>${escapeHtml(row.reason || "")}${row.reasonDetail ? `<div class="muted">${escapeHtml(row.reasonDetail)}</div>` : ""}</td>
+              <td>${escapeHtml(row.caseStatus || "")}</td>
               <td>${statusBadge(row.warrantStatus)}</td>
               ${needsStatusUpdate ? `<td>${syncCell(row)}</td>` : ""}
-              <td><button class="btn danger" onclick="openRevokeConfirm(${Number(row.rowId)})" ${canRevoke ? "" : "disabled"}>เพิกถอน</button></td>
+              <td><div class="actions">${actionButtons}</div></td>
             </tr>`;
           });
           html += `</tbody></table></div><div class="mobile-list">${activeRows.map(row => recordCard(row, true)).join("")}</div>`;
@@ -522,13 +545,14 @@
         if (!historyRows.length) {
           html += `<div class="message">ยังไม่มีประวัติรายการดำเนินการ</div>`;
         } else {
-          html += `<div class="table-wrap responsive-table"><table><thead><tr><th>เวลา</th><th>หมายจับ</th><th>ชื่อสกุล</th><th>เหตุ</th><th>สถานะหมายจับ</th>${updateHeader}</tr></thead><tbody>`;
+          html += `<div class="table-wrap responsive-table"><table><thead><tr><th>เวลา</th><th>หมายจับ</th><th>ชื่อสกุล</th><th>เหตุ</th><th>สถานะสำนวน</th><th>สถานะหมายจับ</th>${updateHeader}</tr></thead><tbody>`;
           historyRows.forEach(row => {
             html += `<tr>
               <td>${escapeHtml(row.timestamp || "")}</td>
               <td>${escapeHtml(row.warrantNo || "")}</td>
               <td>${escapeHtml(row.fullName || "")}</td>
               <td>${escapeHtml(row.reason || "")}${row.reasonDetail ? `<div class="muted">${escapeHtml(row.reasonDetail)}</div>` : ""}</td>
+              <td>${escapeHtml(row.caseStatus || "")}</td>
               <td>${statusBadge(row.warrantStatus)}</td>
               ${needsStatusUpdate ? `<td>${syncCell(row)}</td>` : ""}
             </tr>`;
@@ -593,6 +617,17 @@
       }
     }
 
+    async function markForwarded(rowId) {
+      if (!confirm("ยืนยันส่งต่อสำนวนรายการนี้?")) return;
+      try {
+        await callGas("markForwarded", { rowId });
+        await loadPending();
+      } catch (err) {
+        document.getElementById("pendingList").className = "message error";
+        document.getElementById("pendingList").innerText = err.message;
+      }
+    }
+
     function clearForm(clearId = true) {
       if (clearId) document.getElementById("id13Input").value = "";
       document.getElementById("warrantResults").innerHTML = "";
@@ -607,6 +642,7 @@
 
     document.getElementById("openAddBtn").addEventListener("click", openAddPanel);
     document.getElementById("closeAddBtn").addEventListener("click", closeAddPanel);
+    document.getElementById("cancelFormBtn").addEventListener("click", closeAddPanel);
     document.getElementById("searchBtn").addEventListener("click", searchWarrants);
     document.getElementById("clearBtn").addEventListener("click", () => { clearForm(true); setMessage("searchMessage", ""); });
     document.getElementById("saveBtn").addEventListener("click", openConfirm);
@@ -637,12 +673,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

@@ -249,7 +249,7 @@
                 <!-- ฟอร์มกรอกรายละเอียดเสนอศาล (จะเปิดให้กรอกเมื่อค้นพบข้อมูล) -->
                 <form id="warrantForm" onsubmit="handleFormSubmit(event)" class="hidden space-y-4 pt-2">
                     
-                    <!-- เหตุที่ทำให้หมายจับสิ้นผล (เหมือนธีมตัวเลือกดั้งเดิม) -->
+                    <!-- เหตุที่ทำให้หมายจับสิ้นผล (เหมือนเหตุผลหลักในระบบหลังบ้าน) -->
                     <div class="space-y-1.5">
                         <label for="endReason" class="block text-xs font-bold text-slate-600 uppercase tracking-wider">
                             2. เหตุที่ทำให้หมายจับสิ้นผล <span class="text-red-500">*</span>
@@ -292,7 +292,6 @@
                             <option value="ท่านผู้พิพากษา สมศักดิ์ รักยุติธรรม">ท่านผู้พิพากษา สมศักดิ์ รักยุติธรรม</option>
                             <option value="ท่านผู้พิพากษา วิภาดา ขยันดี">ท่านผู้พิพากษา วิภาดา ขยันดี</option>
                             <option value="ท่านผู้พิพากษา ประสิทธิ์ ยุติธรรมดี">ท่านผู้พิพากษา ประสิทธิ์ ยุติธรรมดี</option>
-                            <!-- TODO: อาจจะเปลี่ยนให้เป็นแบบ Text Input หรือดึงจากฐานข้อมูลถ้ามีการเปลี่ยนแปลงรายชื่อบ่อย -->
                         </select>
                     </div>
 
@@ -483,7 +482,7 @@
         // -------------------------------------------------------------
         function callGas(action, payload) {
             return new Promise((resolve, reject) => {
-                // บังคับหยุดการทำงานหน้าจอป้องกันคนกดเบิ้ล (Loading State - แบบ ก)
+                // บังคับหยุดการทำงานหน้าจอป้องกันคนกดเบิ้ล (Loading State)
                 showLoading(true);
 
                 // หากไม่มีสิทธิ์ระบุตัวตน ปฏิเสธส่งข้อมูลทันที
@@ -534,7 +533,7 @@
         // -------------------------------------------------------------
         async function fetchDataFromGAS() {
             try {
-                // เก็บกล่องฟังก์ชันเผื่อกดขอส่งคำสั่งทำใหม่อีกครั้ง (Retry Logic - แบบ ข)
+                // เก็บกล่องฟังก์ชันเผื่อกดขอส่งคำสั่งทำใหม่อีกครั้ง (Retry Logic)
                 lastFailedRequest = { fn: fetchDataFromGAS, args: [] };
                 
                 const response = await callGas("getPending", {});
@@ -544,7 +543,7 @@
                 lastFailedRequest = null; // คืนค่าความสำเร็จ
                 
             } catch (error) {
-                // แสดงป๊อปอัปให้ผู้ใช้ลองยิงข้อมูลใหม่อีกรอบ (Error Handling - แบบ ข)
+                // แสดงป๊อปอัปให้ผู้ใช้ลองยิงข้อมูลใหม่อีกรอบ (Error Handling)
                 showErrorModal(error.message, () => fetchDataFromGAS());
             }
         }
@@ -693,7 +692,11 @@
             try {
                 lastFailedRequest = { fn: searchWarrants, args: [] };
                 
-                const response = await callGas("search", { query: query });
+                // ตรวจสอบชนิดการสืบค้นให้ตรงกับข้อกำหนดใน search.gs ของหลังบ้าน (id13 หรือ name)
+                const searchType = /^\d+$/.test(query) && query.length === 13 ? "id13" : "name";
+                
+                // ยิงคำขอค้นหาข้ามระบบด้วยฟอร์แมตพารามิเตอร์ของหลังบ้านจริง
+                const response = await callGas("search", { searchType: searchType, keyword: query });
                 const warrants = response.data || [];
                 
                 if(warrants.length === 0) {
@@ -775,6 +778,7 @@
             const reasonDetail = document.getElementById('reasonDetail').value;
             const proposedTo = document.getElementById('proposedTo').value;
 
+            // บันทึกฟอร์แมตตรงตามตัวแปรควบคุมที่ process.gs คาดหวัง
             pendingDataToSave = {
                 defendantName: currentSearchedDefendant.defendantName,
                 selectedWarrants: selectedWarrants,
